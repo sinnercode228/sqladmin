@@ -462,6 +462,7 @@ async def test_edit_page_ajax_relation_to_inherited_base(client: AsyncClient) ->
     async with session_maker() as s:
         s.add(Manager(id=1, name="boss"))
         s.add(Employee(id=2, name="report"))
+        s.add(Employee(id=3, name="newcomer"))
         await s.flush()
         s.add(ManagerReport(manager_id=1, report_id=2))
         await s.commit()
@@ -472,6 +473,17 @@ async def test_edit_page_ajax_relation_to_inherited_base(client: AsyncClient) ->
         'data-json="[{&#34;id&#34;: &#34;2&#34;, &#34;text&#34;: &#34;report&#34;}]"'
         in response.text
     )
+
+    data = {"name": "boss", "reports": ["2", "3"]}
+    response = await client.post("/admin/manager/edit/1", data=data)
+    assert response.status_code == 302
+
+    async with session_maker() as s:
+        stmt = select(Manager).options(selectinload(Manager.reports))
+        result = await s.execute(stmt)
+
+    manager = result.scalar_one()
+    assert sorted(report.id for report in manager.reports) == [2, 3]
 
 
 async def test_create_and_edit_forms(client: AsyncClient) -> None:
